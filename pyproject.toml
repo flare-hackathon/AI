@@ -1,0 +1,7 @@
+[project]
+name = "flareai"
+version = "0.1.0"
+description = "AI Module for FlareAI hackathon"
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = []
