@@ -1,4 +1,6 @@
+# app/main.py
 from fastapi import FastAPI
+from app.scheduler import router as scheduler_router
 
 app = FastAPI()
 
@@ -6,4 +8,5 @@ app = FastAPI()
 async def read_root():
     return {"Hello": "World"}
 
-# You'll add more routes and logic here latercl
+# Register the scheduler routes
+app.include_router(scheduler_router)

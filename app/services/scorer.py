@@ -31,6 +31,32 @@ async def score_new_posts(session: AsyncSession):
         try:
             # 1. Get embedding
             embedding = get_post_embedding(post.title, post.content)
+
+            # Validate the embedding before proceeding
+            if embedding is None or (isinstance(embedding, dict) and not embedding) or (
+                isinstance(embedding, list) and not embedding):
+                logging.error(f"Invalid embedding returned for post {post.id}: {embedding}")
+                error_count += 1
+                continue
+
+            # If embedding is a dict with values, convert it to a list
+            if isinstance(embedding, dict):
+                try:
+                    embedding = list(embedding.values())
+                except Exception as e:
+                    logging.error(f"Failed to convert dict embedding to list for post {post.id}: {embedding} ({e})")
+                    error_count += 1
+                    continue
+
+            # Ensure it's a valid, non-empty list with numeric values
+            if (
+                not isinstance(embedding, list) or
+                len(embedding) == 0 or
+                not all(isinstance(x, (int, float)) for x in embedding)
+            ):
+                logging.error(f"Embedding for post {post.id} is not a valid numeric 1D list: {embedding}")
+                error_count += 1
+                continue
             
             # 2. Get similarity score
             similarity_score = await compute_similarity_score(session, embedding)
@@ -64,19 +90,22 @@ async def score_new_posts(session: AsyncSession):
                 rating_data = await score_post(post.title, post.content)
                 
                 # Merge rating data with embedding and similarity
+                data = rating_data.dict()
+                data.pop("similarityScore", None)
                 ai_rating = AIPostRating(
                     postId=post.id,
                     embedding=embedding,
                     similarityScore=similarity_score,
-                    **rating_data
+                    **data
                 )
                 processed_count += 1
             
             # Add the rating to session
             session.add(ai_rating)
             
-            # Update post with rating ID (will be populated after flush)
+            # Update post with rating ID
             post.aiRatingId = ai_rating.id  # This will work after session.flush()
+            await session.flush()  # Flush to get the ID
             
         except Exception as e:
             logging.error(f"Failed to score post {post.id}: {str(e)}", exc_info=True)

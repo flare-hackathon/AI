@@ -10,3 +10,4 @@ redis
 httpx
 python-dotenv
 langchain-ollama
+greenlet

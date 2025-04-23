@@ -12,26 +12,34 @@ SIMILARITY_THRESHOLD = 0.90  # Configurable threshold
 async def compute_similarity_score(session, new_embedding):
     """
     Compute the maximum similarity between a new embedding and existing embeddings.
-    
-    Args:
-        session: SQLAlchemy async session
-        new_embedding: The vector embedding to compare (numpy array or list)
-        
-    Returns:
-        float: Similarity score between 0.0 and 1.0, where 1.0 is most similar
     """
+    # Check if we have any existing ratings with embeddings
+    check_stmt = select(AIPostRating).where(AIPostRating.embedding.is_not(None)).limit(1)
+    check_result = await session.execute(check_stmt)
+    has_embeddings = check_result.scalar_one_or_none() is not None
+    
+    # If no embeddings exist in the database, return zero similarity
+    if not has_embeddings:
+        logger.debug("No existing embeddings to compare with")
+        return 0.0
+    
     # Ensure new_embedding is properly formatted
     if isinstance(new_embedding, np.ndarray):
         new_embedding = new_embedding.tolist()
+    
+    # Validate the embedding
+    if not isinstance(new_embedding, list) or not new_embedding or not all(isinstance(x, (int, float)) for x in new_embedding):
+        logger.error(f"Invalid embedding format: {type(new_embedding)} | Value: {new_embedding}")
+        return 0.0
     
     try:
         # Convert the embedding to a Vector for proper comparison
         vector_embedding = Vector(new_embedding)
         
-        # Use proper vector comparison with PostgreSQL pgvector
+        # Use pgvector's built-in operator for cosine distance
         stmt = (
             select(
-                func.cosine_similarity(AIPostRating.embedding, vector_embedding).label("similarity")
+                (1 - (AIPostRating.embedding.op("<=>") (vector_embedding))).label("similarity")
             )
             .where(AIPostRating.embedding.is_not(None))
             .order_by(desc("similarity"))
@@ -72,11 +80,12 @@ async def get_most_similar_post(session, new_embedding):
     
     try:
         vector_embedding = Vector(new_embedding)
+        logger.debug(f"Embedding being used for similarity computation: {new_embedding}")
         
         stmt = (
             select(
                 AIPostRating,
-                func.cosine_similarity(AIPostRating.embedding, vector_embedding).label("similarity")
+                (1 - (AIPostRating.embedding.op("<=>") (vector_embedding))).label("similarity")
             )
             .where(AIPostRating.embedding.is_not(None))
             .order_by(desc("similarity"))
