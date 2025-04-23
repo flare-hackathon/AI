@@ -1,3 +1,4 @@
+#app/config.py
 import os
 from dotenv import load_dotenv
 
@@ -9,4 +10,4 @@ DATABASE_URL = os.getenv("DATABASE_URL")
 REDIS_BROKER = os.getenv("REDIS_BROKER")
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
 OLLAMA_BASE_URL = os.getenv("OLLAMA_BASE_URL") 
-
+OPENAI_BASE_URL = os.getenv("OPENAI_BASE_URL")
